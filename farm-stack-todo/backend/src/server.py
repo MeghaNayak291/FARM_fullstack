@@ -9,13 +9,27 @@ import uvicorn
 from dal import ToDoDAL, ListSummary, ToDoList
 import os
 from dotenv import load_dotenv  # optional, only for local testing
-
 import os
-from pymongo import MongoClient
+from motor.motor_asyncio import AsyncIOMotorClient
+from dotenv import load_dotenv  # only needed for local testing
 
-client = MongoClient(os.getenv("MONGODB_URI"))
-db = client.get_database()  # or specify your DB name
+# Load .env locally (won't affect Render)
+load_dotenv()
 
+# Read MongoDB URI from environment
+MONGODB_URI = os.environ["MONGODB_URI"]
+
+COLLECTION_NAME = "todo_lists"
+DEBUG = os.environ.get("DEBUG", "").strip().lower() in {"1", "true", "on", "yes"}
+
+# Connect to MongoDB
+try:
+    client = AsyncIOMotorClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+    db = client.get_database()
+    print("MongoDB connected successfully!")
+except Exception as e:
+    print("Failed to connect to MongoDB:", e)
+    exit(3)
 # Load .env locally
 load_dotenv()
 
