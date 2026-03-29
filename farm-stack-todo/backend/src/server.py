@@ -1,81 +1,75 @@
 from contextlib import asynccontextmanager
 import os
-import os
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 import uvicorn
 from dal import ToDoDAL, ListSummary, ToDoList
-import os
-from dotenv import load_dotenv  # optional, only for local testing
-import os
-from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv  # only needed for local testing
 
-# Load .env locally (won't affect Render)
-load_dotenv()
+# ------------------------
+# Load environment variables (local only)
+load_dotenv()  # safe for Render, will just do nothing if no .env
 
+# ------------------------
 # Read MongoDB URI from environment
-MONGODB_URI = os.environ["MONGODB_URI"]
-
-COLLECTION_NAME = "todo_lists"
-DEBUG = os.environ.get("DEBUG", "").strip().lower() in {"1", "true", "on", "yes"}
-
-# Connect to MongoDB
-try:
-    client = AsyncIOMotorClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
-    db = client.get_database()
-    print("MongoDB connected successfully!")
-except Exception as e:
-    print("Failed to connect to MongoDB:", e)
-    exit(3)
-# Load .env locally
-load_dotenv()
-
-# MongoDB connection
-MONGODB_URI = os.environ["MONGODB_URI"]  # Will crash if not set locally; see below
-
-# Optional: local fallback if .env missing (useful for testing)
+MONGODB_URI = os.environ.get("MONGODB_URI")
 if not MONGODB_URI:
     raise ValueError("MONGODB_URI environment variable not set!")
+
+# Debug mode (optional)
+DEBUG = os.environ.get("DEBUG", "").strip().lower() in {"1", "true", "on", "yes"}
 
 # Collection name
 COLLECTION_NAME = "todo_lists"
 
-# Debug mode (default False)
-DEBUG = os.environ.get("DEBUG", "").strip().lower() in {"1", "true", "on", "yes"}
-
 print("MongoDB URI loaded:", MONGODB_URI)
 print("Debug mode:", DEBUG)
 
+# ------------------------
+# Lifespan for FastAPI to manage DB connection
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    client = AsyncIOMotorClient(MONGODB_URI)
-    database = client.get_default_database()
-    pong = await database.command("ping")
-    if int(pong["ok"]) != 1:
-        raise Exception("Cluster connection is not okay!")
-    app.todo_dal = ToDoDAL(database.get_collection(COLLECTION_NAME))
-    yield
-    client.close()
+    client = AsyncIOMotorClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+    try:
+        database = client.get_default_database()
+        pong = await database.command("ping")
+        if int(pong["ok"]) != 1:
+            raise Exception("MongoDB cluster ping failed!")
+        app.todo_dal = ToDoDAL(database.get_collection(COLLECTION_NAME))
+        print("MongoDB connected successfully!")
+        yield
+    finally:
+        client.close()
 
+# ------------------------
+# FastAPI app
 app = FastAPI(lifespan=lifespan, debug=DEBUG)
 
+# CORS (adjust front-end URL as needed)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173"],  # update if deployed frontend elsewhere
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-class NewList(BaseModel): name: str
-class NewItem(BaseModel): label: str
+# ------------------------
+# Pydantic models
+class NewList(BaseModel):
+    name: str
+
+class NewItem(BaseModel):
+    label: str
+
 class ListItemCheckedState(BaseModel):
     item_id: str
     checked_state: bool
 
+# ------------------------
+# Routes
 @app.get("/api/lists")
 async def get_all_lists() -> list[ListSummary]:
     return [i async for i in app.todo_dal.list_todo_lists()]
@@ -104,5 +98,7 @@ async def set_checked_state(list_id: str, update: ListItemCheckedState) -> ToDoL
 async def delete_item(list_id: str, item_id: str) -> ToDoList:
     return await app.todo_dal.delete_item(list_id, item_id)
 
+# ------------------------
+# Run locally
 if __name__ == "__main__":
     uvicorn.run("server:app", host="0.0.0.0", port=3001, reload=DEBUG)
