@@ -9,10 +9,11 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
 # Copy source code
-COPY src/ ./src/
+COPY ./src ./src
 
 # Expose port
 EXPOSE 3001
 
 # Start server
 CMD ["python", "./src/server.py"]
+
