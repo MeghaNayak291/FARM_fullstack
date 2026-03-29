@@ -1,3 +1,4 @@
+# backend/src/server.py
 from contextlib import asynccontextmanager
 import os
 from fastapi import FastAPI, status
@@ -7,69 +8,37 @@ from pydantic import BaseModel
 import uvicorn
 from dal import ToDoDAL, ListSummary, ToDoList
 
-# ------------------------
-# Read MongoDB URI from environment (Render provides this)
-MONGODB_URI = os.environ.get("MONGODB_URI")
-if not MONGODB_URI:
-    raise ValueError("MONGODB_URI environment variable not set!")
-
-# Debug mode (optional)
-DEBUG = os.environ.get("DEBUG", "").strip().lower() in {"1", "true", "on", "yes"}
-
-# Collection name
 COLLECTION_NAME = "todo_lists"
+MONGODB_URI = os.environ["MONGODB_URI"]
+DEBUG = os.environ.get("DEBUG","").strip().lower() in {"1","true","on","yes"}
 
-print("MongoDB URI loaded:", MONGODB_URI)
-print("Debug mode:", DEBUG)
-
-# ------------------------
-# FastAPI lifespan for DB connection
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    client = AsyncIOMotorClient(
-        MONGODB_URI,
-        serverSelectionTimeoutMS=5000,
-        tls=True,
-        tlsAllowInvalidCertificates=True  # fixes MongoDB Atlas SSL issues
-    )
+    client = AsyncIOMotorClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
     try:
-        database = client.get_default_database()
+        database = client["megha"]  # explicitly use your database
         pong = await database.command("ping")
-        if int(pong.get("ok", 0)) != 1:
-            raise Exception("MongoDB cluster ping failed!")
         app.todo_dal = ToDoDAL(database.get_collection(COLLECTION_NAME))
-        print("MongoDB connected successfully!")
         yield
     finally:
         client.close()
 
-# ------------------------
-# FastAPI app
 app = FastAPI(lifespan=lifespan, debug=DEBUG)
 
-# CORS setup (update frontend URL if deployed elsewhere)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # change this to deployed frontend URL
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ------------------------
-# Pydantic models
-class NewList(BaseModel):
-    name: str
-
-class NewItem(BaseModel):
-    label: str
-
+class NewList(BaseModel): name: str
+class NewItem(BaseModel): label: str
 class ListItemCheckedState(BaseModel):
     item_id: str
     checked_state: bool
 
-# ------------------------
-# Routes
 @app.get("/api/lists")
 async def get_all_lists() -> list[ListSummary]:
     return [i async for i in app.todo_dal.list_todo_lists()]
@@ -98,7 +67,5 @@ async def set_checked_state(list_id: str, update: ListItemCheckedState) -> ToDoL
 async def delete_item(list_id: str, item_id: str) -> ToDoList:
     return await app.todo_dal.delete_item(list_id, item_id)
 
-# ------------------------
-# Run locally
 if __name__ == "__main__":
-    uvicorn.run("server:app", host="0.0.0.0", port=3001, reload=DEBUG)
+    uvicorn.run("server:app", host="0.0.0.0", port=3002, reload=DEBUG)
