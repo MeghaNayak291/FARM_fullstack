@@ -8,6 +8,13 @@ import uvicorn
 from dal import ToDoDAL, ListSummary, ToDoList
 from dotenv import load_dotenv  # only needed for local testing
 
+client = AsyncIOMotorClient(
+    MONGODB_URI,
+    serverSelectionTimeoutMS=5000,
+    tls=True,
+    tlsAllowInvalidCertificates=True
+)
+
 # ------------------------
 # Load environment variables (local only)
 load_dotenv()  # safe for Render, will just do nothing if no .env
