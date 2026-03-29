@@ -7,10 +7,27 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 import uvicorn
 from dal import ToDoDAL, ListSummary, ToDoList
+import os
+from dotenv import load_dotenv  # optional, only for local testing
 
+# Load .env locally
+load_dotenv()
+
+# MongoDB connection
+MONGODB_URI = os.environ["MONGODB_URI"]  # Will crash if not set locally; see below
+
+# Optional: local fallback if .env missing (useful for testing)
+if not MONGODB_URI:
+    raise ValueError("MONGODB_URI environment variable not set!")
+
+# Collection name
 COLLECTION_NAME = "todo_lists"
-MONGODB_URI = os.environ["MONGODB_URI"]
-DEBUG = os.environ.get("DEBUG","").strip().lower() in {"1","true","on","yes"}
+
+# Debug mode (default False)
+DEBUG = os.environ.get("DEBUG", "").strip().lower() in {"1", "true", "on", "yes"}
+
+print("MongoDB URI loaded:", MONGODB_URI)
+print("Debug mode:", DEBUG)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
