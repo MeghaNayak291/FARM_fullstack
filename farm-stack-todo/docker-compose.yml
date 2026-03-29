@@ -1,0 +1,45 @@
+# docker-compose.yml
+version: "3.9"
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: farm_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - farm_network
+
+  backend:
+    build: ./backend
+    container_name: farm_backend
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/todoapp
+      - DEBUG=true
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongodb
+    networks:
+      - farm_network
+    volumes:
+      - ./backend/src:/usr/src/app/src
+
+  frontend:
+    build: ./frontend
+    container_name: farm_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - farm_network
+
+volumes:
+  mongo_data:
+
+networks:
+  farm_network:
+    driver: bridge
