@@ -15,6 +15,23 @@ client = AsyncIOMotorClient(
     tlsAllowInvalidCertificates=True
 )
 
+import os
+from motor.motor_asyncio import AsyncIOMotorClient
+
+# Read MongoDB URI from environment (Render will provide it)
+MONGODB_URI = os.environ.get("MONGODB_URI")
+if not MONGODB_URI:
+    raise ValueError("MONGODB_URI environment variable not set!")
+
+# Connect to MongoDB
+client = AsyncIOMotorClient(
+    MONGODB_URI,
+    serverSelectionTimeoutMS=5000,
+    tls=True,
+    tlsAllowInvalidCertificates=True
+)
+db = client.get_database()
+print("MongoDB connected successfully!")
 # ------------------------
 # Load environment variables (local only)
 load_dotenv()  # safe for Render, will just do nothing if no .env
