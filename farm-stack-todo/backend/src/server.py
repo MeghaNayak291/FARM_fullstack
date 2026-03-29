@@ -10,6 +10,12 @@ from dal import ToDoDAL, ListSummary, ToDoList
 import os
 from dotenv import load_dotenv  # optional, only for local testing
 
+import os
+from pymongo import MongoClient
+
+client = MongoClient(os.getenv("MONGODB_URI"))
+db = client.get_database()  # or specify your DB name
+
 # Load .env locally
 load_dotenv()
 
