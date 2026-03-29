@@ -6,38 +6,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 import uvicorn
 from dal import ToDoDAL, ListSummary, ToDoList
-from dotenv import load_dotenv  # only needed for local testing
-
-client = AsyncIOMotorClient(
-    MONGODB_URI,
-    serverSelectionTimeoutMS=5000,
-    tls=True,
-    tlsAllowInvalidCertificates=True
-)
-
-import os
-from motor.motor_asyncio import AsyncIOMotorClient
-
-# Read MongoDB URI from environment (Render will provide it)
-MONGODB_URI = os.environ.get("MONGODB_URI")
-if not MONGODB_URI:
-    raise ValueError("MONGODB_URI environment variable not set!")
-
-# Connect to MongoDB
-client = AsyncIOMotorClient(
-    MONGODB_URI,
-    serverSelectionTimeoutMS=5000,
-    tls=True,
-    tlsAllowInvalidCertificates=True
-)
-db = client.get_database()
-print("MongoDB connected successfully!")
-# ------------------------
-# Load environment variables (local only)
-load_dotenv()  # safe for Render, will just do nothing if no .env
 
 # ------------------------
-# Read MongoDB URI from environment
+# Read MongoDB URI from environment (Render provides this)
 MONGODB_URI = os.environ.get("MONGODB_URI")
 if not MONGODB_URI:
     raise ValueError("MONGODB_URI environment variable not set!")
@@ -52,14 +23,19 @@ print("MongoDB URI loaded:", MONGODB_URI)
 print("Debug mode:", DEBUG)
 
 # ------------------------
-# Lifespan for FastAPI to manage DB connection
+# FastAPI lifespan for DB connection
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    client = AsyncIOMotorClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+    client = AsyncIOMotorClient(
+        MONGODB_URI,
+        serverSelectionTimeoutMS=5000,
+        tls=True,
+        tlsAllowInvalidCertificates=True  # fixes MongoDB Atlas SSL issues
+    )
     try:
         database = client.get_default_database()
         pong = await database.command("ping")
-        if int(pong["ok"]) != 1:
+        if int(pong.get("ok", 0)) != 1:
             raise Exception("MongoDB cluster ping failed!")
         app.todo_dal = ToDoDAL(database.get_collection(COLLECTION_NAME))
         print("MongoDB connected successfully!")
@@ -71,10 +47,10 @@ async def lifespan(app: FastAPI):
 # FastAPI app
 app = FastAPI(lifespan=lifespan, debug=DEBUG)
 
-# CORS (adjust front-end URL as needed)
+# CORS setup (update frontend URL if deployed elsewhere)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # update if deployed frontend elsewhere
+    allow_origins=["http://localhost:5173"],  # change this to deployed frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
